@@ -9,6 +9,7 @@ ALTER SYSTEM SET deadlock_timeout = '1s';
 ALTER SYSTEM SET track_activities = on;
 ALTER SYSTEM SET track_counts = on;
 ALTER SYSTEM SET track_io_timing = on;
+ALTER SYSTEM SET max_connections = 200;
 
 CREATE TABLE IF NOT EXISTS cm_workload_test (
     id          SERIAL PRIMARY KEY,
