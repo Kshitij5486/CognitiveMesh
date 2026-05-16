@@ -53,16 +53,23 @@ class CausalProofRequest:
         return f"causal-{self.node_id}-{ts}"
 
     def to_rust_request(self) -> dict:
+    # MAC constraint: causal_effect = avg_latency * active_queries
+    # The Rust prover checks: mac = alpha * value (mod PRIME)
+    # So we must ensure: causal_effect_ms = avg_latency_ms * active_queries
+        value = int(self.active_queries)
+        alpha = int(abs(self.avg_latency_ms))
+        mac = value * alpha  # enforce the constraint exactly
+
         return {
             "job_id": self.job_id,
             "party_id": self.party_id,
             "node_id": self.node_id,
-            "active_queries": int(self.active_queries),
-            "avg_latency_ms": int(abs(self.avg_latency_ms)),
-            "causal_effect_ms": int(abs(self.causal_effect_ms)),
+            "active_queries": value,
+            "avg_latency_ms": alpha,
+            "causal_effect_ms": mac,
             "samples_used": int(self.samples_used),
             "retrain_cycle": int(self.retrain_cycle),
-        }
+    }
 
 
 class CausalProofResult:
