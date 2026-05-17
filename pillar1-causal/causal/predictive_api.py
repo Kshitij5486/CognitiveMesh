@@ -2,6 +2,7 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from predictive_byzantine_bridge import ByzantinePredictiveBridge
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -33,6 +34,7 @@ updater: Optional[StreamingCausalUpdater] = None
 analyzer: Optional[LoadTrendAnalyzer] = None
 simulator: Optional[CausalSimulator] = None
 alerter: Optional[PredictiveAlerter] = None
+bridge: Optional[ByzantinePredictiveBridge] = None
 api_start_time: Optional[str] = None
 
 
@@ -79,6 +81,11 @@ async def lifespan(app: FastAPI):
         check_interval=15.0,
     )
     alerter.start()
+    bridge = ByzantinePredictiveBridge(
+        alerter=alerter,
+        poll_interval=15.0,
+    )
+    bridge.start()
 
     logger.info(
         "Predictive Intelligence API started — "
@@ -89,6 +96,8 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Predictive Intelligence API")
     if alerter:
         alerter.stop()
+    if bridge:
+        bridge.stop()    
     if simulator:
         simulator.stop()
     if analyzer:
@@ -138,6 +147,11 @@ def health():
             ),
             "analyses_run": analyzer_status.get("analyses_run", 0),
             "tracker_sizes": analyzer_status.get("tracker_sizes", {}),
+        },
+        "byzantine_bridge": {
+            "available": bridge.status()["byzantine_api_available"] if bridge else False,
+            "active_nodes": bridge.status()["active_nodes"] if bridge else [],
+            "isolated_nodes": bridge.status()["isolated_nodes"] if bridge else [],
         },
         "simulator": {
             "simulations_run": simulator_status.get(
@@ -472,7 +486,24 @@ def pipeline_summary():
         },
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+@app.get("/byzantine")
+def byzantine_status():
+    if not bridge:
+        raise HTTPException(status_code=503, detail="Bridge not ready")
 
+    bridge_data = bridge.status()
+    trusted = bridge.get_trusted_nodes()
+
+    sim = simulator.get_latest_simulation() if simulator else None
+    if sim and bridge:
+        sim = bridge.enrich_simulation(sim)
+
+    return {
+        "bridge": bridge_data,
+        "trusted_nodes_for_forecasting": trusted,
+        "enriched_simulation": sim,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 if __name__ == "__main__":
     uvicorn.run(
