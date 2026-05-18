@@ -1,0 +1,582 @@
+# CognitiveMesh Prometheus Alerting Rules
+# Version: 0.8.0
+# Sprint: 8 — Federated Observability
+#
+# Import into Prometheus via:
+#   rule_files:
+#     - /path/to/prometheus_alert_rules.yaml
+#
+# Or via Grafana Alerting → Alert rules → Import
+
+groups:
+
+  # ── Causal Engine Alerts ────────────────────────────────
+  - name: cognitivemesh_causal_engine
+    interval: 15s
+    rules:
+
+      - alert: CausalEngineNotReady
+        expr: cognitivemesh_causal_engine_ready == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "CognitiveMesh causal engine is not ready"
+          description: >
+            The causal inference engine has been in a not-ready state
+            for more than 30 seconds. Buffer may be empty or training
+            failed. Check streaming_updater logs.
+          runbook: "Restart the updater service. Verify PostgreSQL
+            connectivity on ports 5436-5438. Check Kafka consumer."
+
+      - alert: CausalBufferLow
+        expr: cognitivemesh_causal_buffer_size < 20
+        for: 60s
+        labels:
+          severity: warning
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "Causal buffer below minimum training threshold"
+          description: >
+            Buffer size {{ $value }} is below 20 samples. Causal model
+            quality may degrade. Load generator may have stopped.
+          runbook: "Start load_generator.py. Check telemetry
+            collector connectivity."
+
+      - alert: CausalEffectAnomalouslyHigh
+        expr: cognitivemesh_causal_effect_ms > 60
+        for: 60s
+        labels:
+          severity: warning
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "Causal effect on {{ $labels.node }} is anomalously high"
+          description: >
+            Node {{ $labels.node }} causal effect is {{ $value }}ms,
+            which is more than double the expected 25-30ms range.
+            This indicates severe PostgreSQL performance degradation
+            or a data quality issue in the telemetry pipeline.
+          runbook: "Check PostgreSQL slow query log on the affected
+            node. Verify pg_stat_activity for blocking queries."
+
+      - alert: CausalModelInstabilityHigh
+        expr: cognitivemesh_causal_model_stability_score < 0.90
+        for: 120s
+        labels:
+          severity: warning
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "Causal model unstable on {{ $labels.node }}"
+          description: >
+            Stability score for {{ $labels.node }} is {{ $value }},
+            below the 0.90 threshold. High variance in causal effect
+            estimates indicates non-stationary workload patterns.
+          runbook: "Review load distribution. Consider increasing
+            retrain frequency via AutoRetrainer drift_threshold_ms."
+
+      - alert: CausalEffectSpreadHigh
+        expr: cognitivemesh_causal_effect_spread_ms > 10
+        for: 120s
+        labels:
+          severity: warning
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "High causal effect spread across cluster nodes"
+          description: >
+            Spread between max and min causal effects across nodes is
+            {{ $value }}ms, above the 10ms threshold. Nodes are
+            experiencing significantly different workload pressures.
+          runbook: "Review load balancing. Trigger manual rebalance
+            via POST /heal. Check for hardware asymmetry."
+
+      - alert: CausalDriftRateHigh
+        expr: cognitivemesh_causal_drift_rate_per_hour > 10
+        for: 300s
+        labels:
+          severity: warning
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "High causal drift rate on {{ $labels.node }}"
+          description: >
+            Drift event rate on {{ $labels.node }} is {{ $value }}
+            events/hour, above the 10/hour threshold. The causal
+            model is changing frequently — possible workload shift
+            or data quality issue.
+          runbook: "Check for workload changes. Review retrain
+            cooldown settings. Lower drift_threshold_ms if needed."
+
+      - alert: CausalBufferUtilizationCritical
+        expr: cognitivemesh_causal_buffer_utilization_ratio > 0.95
+        for: 60s
+        labels:
+          severity: warning
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "Causal telemetry buffer near capacity"
+          description: >
+            Buffer utilization is {{ $value | humanizePercentage }}.
+            Old samples are being evicted before use. Increase
+            max_buffer_size or reduce collection interval.
+          runbook: "Increase max_buffer_size in StreamingCausalUpdater
+            constructor. Consider reducing retrain_interval_seconds."
+
+  # ── Predictive Alerting System Alerts ───────────────────
+  - name: cognitivemesh_predictive
+    interval: 15s
+    rules:
+
+      - alert: PredictiveAlertStormActive
+        expr: cognitivemesh_predictive_alerts_active > 50
+        for: 60s
+        labels:
+          severity: warning
+          component: predictive_alerter
+          team: platform
+        annotations:
+          summary: "Predictive alert storm — {{ $value }} active alerts"
+          description: >
+            More than 50 predictive alerts are active simultaneously.
+            This indicates sustained cluster-wide degradation or a
+            runaway alert accumulation in the alerter.
+          runbook: "Check if load is genuinely elevated. If alerts
+            are stale, call alerter.clear_all_alerts(). Review
+            alert deduplication logic."
+
+      - alert: PredictiveWorstCaseLatencyCritical
+        expr: cognitivemesh_predictive_worst_case_latency_ms > 600
+        for: 60s
+        labels:
+          severity: critical
+          component: predictive_alerter
+          team: platform
+        annotations:
+          summary: "Worst-case predicted latency exceeds 600ms"
+          description: >
+            Cluster worst-case predicted latency is {{ $value }}ms.
+            At this level, user-facing queries will experience
+            unacceptable response times within 5 minutes.
+          runbook: "Trigger manual recovery via POST /recovery.
+            Consider isolating highest-effect node. Scale
+            connection pools on all PostgreSQL nodes."
+
+      - alert: PredictiveAlertFiringRateHigh
+        expr: rate(cognitivemesh_predictive_alerts_fired_total[5m]) > 2
+        for: 120s
+        labels:
+          severity: warning
+          component: predictive_alerter
+          team: platform
+        annotations:
+          summary: "High predictive alert firing rate"
+          description: >
+            Alerts are firing at {{ $value | humanize }} per second
+            over a 5-minute window. Investigate whether workload
+            is genuinely rising or threshold calibration is needed.
+          runbook: "Review alert thresholds in PredictiveAlerter.
+            Check if load_generator is in ramp-up phase."
+
+  # ── Healing Engine Alerts ────────────────────────────────
+  - name: cognitivemesh_healing_engine
+    interval: 15s
+    rules:
+
+      - alert: HealingEngineHealthDegraded
+        expr: cognitivemesh_healing_engine_health_score < 0.80
+        for: 60s
+        labels:
+          severity: warning
+          component: healing_engine
+          team: platform
+        annotations:
+          summary: "Healing engine health score degraded"
+          description: >
+            Healing engine composite health score is {{ $value }},
+            below the 0.80 threshold. Action success rate may have
+            dropped or the engine has fallen behind check cycles.
+          runbook: "Review healing action history via GET /heal.
+            Check for repeated FAILED actions. Restart engine
+            if action queue is stuck."
+
+      - alert: HealingActionSuccessRateLow
+        expr: cognitivemesh_healing_success_rate < 0.90
+        for: 120s
+        labels:
+          severity: warning
+          component: healing_engine
+          team: platform
+        annotations:
+          summary: "Healing action success rate below 90%"
+          description: >
+            Overall healing action success rate is
+            {{ $value | humanizePercentage }}. Actions are failing
+            repeatedly. This indicates a systemic issue with the
+            healing execution layer.
+          runbook: "Check HealingActionExecutor logs. Verify
+            causal engine is_ready=true. Review action history
+            via GET /heal/{node_id}."
+
+      - alert: HealingActionsNotFiring
+        expr: |
+          cognitivemesh_predictive_alerts_active > 10
+          and cognitivemesh_healing_actions_total == 0
+        for: 120s
+        labels:
+          severity: critical
+          component: healing_engine
+          team: platform
+        annotations:
+          summary: "Alerts active but no healing actions fired"
+          description: >
+            {{ $value }} alerts are active but zero healing actions
+            have been executed. The healing engine may be disabled,
+            crashed, or the causal engine is not ready.
+          runbook: "Check auto_heal=True in HealingActionEngine.
+            Verify causal engine is_ready. Restart healing engine
+            service if necessary."
+
+      - alert: ConsecutiveHealingFailures
+        expr: cognitivemesh_healing_consecutive_failures > 3
+        for: 60s
+        labels:
+          severity: critical
+          component: healing_engine
+          team: platform
+        annotations:
+          summary: "{{ $labels.node }} has {{ $value }} consecutive healing failures"
+          description: >
+            Node {{ $labels.node }} has accumulated {{ $value }}
+            consecutive failed healing actions. The node may require
+            manual intervention or isolation.
+          runbook: "Trigger manual recovery via POST /recovery with
+            node_id={{ $labels.node }}. Consider isolating the
+            node via POST /router/reroute."
+
+  # ── Query Router Alerts ──────────────────────────────────
+  - name: cognitivemesh_router
+    interval: 15s
+    rules:
+
+      - alert: RouterNodeDown
+        expr: cognitivemesh_router_node_state == 0
+        for: 30s
+        labels:
+          severity: warning
+          component: router
+          team: platform
+        annotations:
+          summary: "Node {{ $labels.node }} is not receiving traffic"
+          description: >
+            Node {{ $labels.node }} has been in rerouted or isolated
+            state for more than 30 seconds. Traffic is being diverted
+            away from this node.
+          runbook: "Check recovery status via GET /recovery/{{ $labels.node }}.
+            If node has recovered, restore via POST /router/restore/{{ $labels.node }}."
+
+      - alert: RouterAllNodesRerouted
+        expr: cognitivemesh_router_active_nodes < 2
+        for: 30s
+        labels:
+          severity: critical
+          component: router
+          team: platform
+        annotations:
+          summary: "Fewer than 2 nodes receiving traffic — cluster critically degraded"
+          description: >
+            Only {{ $value }} node(s) are currently active in the
+            routing pool. Single point of failure imminent. Manual
+            intervention required.
+          runbook: "Immediately check all node states via GET /router.
+            Restore healthy nodes via POST /router/restore/{node_id}.
+            Escalate to on-call engineer."
+
+      - alert: RouterIsolatedNodesPresent
+        expr: cognitivemesh_router_isolated_nodes > 0
+        for: 60s
+        labels:
+          severity: critical
+          component: router
+          team: platform
+        annotations:
+          summary: "{{ $value }} node(s) currently isolated from routing"
+          description: >
+            One or more nodes have been isolated from the routing
+            pool. Byzantine behavior or severe causal threshold
+            violation triggered isolation.
+          runbook: "Review Byzantine detection logs. Check if isolation
+            is justified. Restore via POST /router/restore/{node_id}
+            after verifying node health."
+
+      - alert: TrafficConcentrationHigh
+        expr: cognitivemesh_router_traffic_concentration_index > 0.5
+        for: 120s
+        labels:
+          severity: warning
+          component: router
+          team: platform
+        annotations:
+          summary: "Traffic highly concentrated — routing imbalanced"
+          description: >
+            Traffic concentration index (HHI) is {{ $value }}.
+            Above 0.5 indicates most traffic is flowing to one node,
+            creating a hot spot. Causal weights may be extreme.
+          runbook: "Review causal effect estimates via GET /retrain.
+            If one node has an anomalously high effect, trigger
+            retrain via POST /retrain."
+
+      - alert: RouterHealthDegraded
+        expr: cognitivemesh_router_health_score < 0.80
+        for: 60s
+        labels:
+          severity: warning
+          component: router
+          team: platform
+        annotations:
+          summary: "Router health score degraded to {{ $value }}"
+          description: >
+            Router composite health score is below 0.80. Active
+            nodes may be reduced, isolation may have occurred, or
+            traffic distribution is highly imbalanced.
+          runbook: "Review routing table via GET /router. Check
+            node states and active decisions."
+
+  # ── Auto-Retrainer Alerts ────────────────────────────────
+  - name: cognitivemesh_retrainer
+    interval: 30s
+    rules:
+
+      - alert: RetrainerSuccessRateLow
+        expr: cognitivemesh_retrainer_success_rate < 0.80
+        for: 120s
+        labels:
+          severity: warning
+          component: retrainer
+          team: platform
+        annotations:
+          summary: "Retrainer success rate below 80%"
+          description: >
+            Retrainer success rate is {{ $value | humanizePercentage }}.
+            Multiple retrain operations are failing. The causal engine
+            may not be ready when retraining is triggered.
+          runbook: "Check causal engine is_ready status. Review
+            retrain history via GET /retrain. Ensure buffer size
+            is above min_samples_for_training (30)."
+
+      - alert: RetrainerNotTriggering
+        expr: |
+          cognitivemesh_causal_drift_events_total > 0
+          and cognitivemesh_retrainer_triggered_total == 0
+        for: 300s
+        labels:
+          severity: warning
+          component: retrainer
+          team: platform
+        annotations:
+          summary: "Drift detected but retrainer not triggering"
+          description: >
+            Causal drift events have been detected but no retrains
+            have been triggered. AutoRetrainer may be disabled or
+            in persistent cooldown.
+          runbook: "Check auto_retrain=True in AutoRetrainer.
+            Verify cooldown has expired. Trigger manual retrain
+            via POST /retrain."
+
+      - alert: RetrainerHealthDegraded
+        expr: cognitivemesh_retrainer_health_score < 0.80
+        for: 120s
+        labels:
+          severity: warning
+          component: retrainer
+          team: platform
+        annotations:
+          summary: "Retrainer health score degraded to {{ $value }}"
+          description: >
+            Retrainer composite health is below 0.80. Efficiency
+            ratio or success rate has dropped significantly.
+          runbook: "Review retrainer status via GET /retrain.
+            Check for persistent cooldowns blocking retrains."
+
+      - alert: CausalDriftPersistent
+        expr: cognitivemesh_causal_drift_magnitude_ms > 5
+        for: 300s
+        labels:
+          severity: warning
+          component: retrainer
+          team: platform
+        annotations:
+          summary: "Persistent causal drift on {{ $labels.node }}"
+          description: >
+            Node {{ $labels.node }} drift magnitude has been above
+            5ms for 5 minutes. The causal model is not converging.
+            Workload distribution may have fundamentally changed.
+          runbook: "Trigger manual retrain via POST /retrain with
+            node_ids=[{{ $labels.node }}]. Review telemetry data
+            quality for this node."
+
+  # ── Recovery Orchestrator Alerts ─────────────────────────
+  - name: cognitivemesh_orchestrator
+    interval: 15s
+    rules:
+
+      - alert: RecoverySequenceFailed
+        expr: increase(cognitivemesh_orchestrator_failed_recoveries_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: orchestrator
+          team: platform
+        annotations:
+          summary: "Recovery sequence failed in the last 5 minutes"
+          description: >
+            At least one recovery sequence has failed. A node may
+            still be degraded. Manual intervention likely required.
+          runbook: "Review recovery history via GET /recovery.
+            Check which node failed verification. Trigger manual
+            recovery via POST /recovery."
+
+      - alert: RecoveryMTTRHigh
+        expr: cognitivemesh_recovery_mttr_seconds > 60
+        for: 300s
+        labels:
+          severity: warning
+          component: orchestrator
+          team: platform
+        annotations:
+          summary: "Mean time to recovery above 60 seconds"
+          description: >
+            MTTR is {{ $value }}s, above the 60-second target.
+            Recovery sequences are taking too long. The verification
+            wait time or retraining duration may need tuning.
+          runbook: "Review VERIFY_WAIT_SECONDS in RecoveryOrchestrator.
+            Check if retrain is completing before verification."
+
+      - alert: MultipleActiveRecoveries
+        expr: cognitivemesh_orchestrator_active_sequences > 1
+        for: 30s
+        labels:
+          severity: warning
+          component: orchestrator
+          team: platform
+        annotations:
+          summary: "{{ $value }} recovery sequences active simultaneously"
+          description: >
+            Multiple nodes are in simultaneous recovery. This is
+            a high-risk state — if recovery fails, cluster may
+            have insufficient capacity.
+          runbook: "Monitor closely. Do not trigger additional
+            reroutes. Ensure at least 1 node remains active
+            during recovery."
+
+      - alert: OrchestratorHealthDegraded
+        expr: cognitivemesh_orchestrator_health_score < 0.80
+        for: 60s
+        labels:
+          severity: warning
+          component: orchestrator
+          team: platform
+        annotations:
+          summary: "Orchestrator health score degraded to {{ $value }}"
+          description: >
+            Orchestrator composite health is below 0.80. Recovery
+            success rate may have dropped or multiple sequences
+            are running simultaneously.
+          runbook: "Review orchestrator status via GET /recovery.
+            Check active sequences and recent history."
+
+  # ── Overall Fabric Health Alerts ─────────────────────────
+  - name: cognitivemesh_fabric
+    interval: 15s
+    rules:
+
+      - alert: SelfHealingFabricDegraded
+        expr: cognitivemesh_self_healing_fabric_status == 0
+        for: 60s
+        labels:
+          severity: critical
+          component: fabric
+          team: platform
+        annotations:
+          summary: "CognitiveMesh self-healing fabric is DEGRADED"
+          description: >
+            The overall self-healing fabric status has dropped to
+            DEGRADED (overall_score < 0.60). Multiple components
+            are unhealthy simultaneously. Immediate intervention
+            required.
+          runbook: "Review all component health scores via
+            GET /pipeline/summary. Identify the weakest component.
+            Restart affected services. Escalate to on-call."
+
+      - alert: SelfHealingOverallScoreLow
+        expr: cognitivemesh_self_healing_overall_score < 0.75
+        for: 120s
+        labels:
+          severity: warning
+          component: fabric
+          team: platform
+        annotations:
+          summary: "Overall self-healing score below 75%"
+          description: >
+            Overall health score is {{ $value | humanizePercentage }},
+            below the 0.75 warning threshold. The fabric is
+            partially degraded — proactive intervention recommended.
+          runbook: "Check GET /pipeline/summary for component
+            breakdown. Address the lowest-scoring component first."
+
+      - alert: ExporterScrapingErrors
+        expr: cognitivemesh_exporter_collection_errors_total > 0
+        for: 60s
+        labels:
+          severity: warning
+          component: exporter
+          team: platform
+        annotations:
+          summary: "Prometheus exporter experiencing collection errors"
+          description: >
+            {{ $value }} collection errors detected in the exporter.
+            Some metrics may be stale or missing. This affects
+            observability but not cluster operation.
+          runbook: "Check prometheus_exporter.py logs. Verify
+            all 8 components are running. Restart exporter if
+            errors persist."
+
+      - alert: ExporterScrapeLatencyHigh
+        expr: cognitivemesh_exporter_last_scrape_latency_ms > 100
+        for: 120s
+        labels:
+          severity: warning
+          component: exporter
+          team: platform
+        annotations:
+          summary: "Prometheus scrape latency high at {{ $value }}ms"
+          description: >
+            Metric collection is taking {{ $value }}ms per cycle,
+            above the 100ms threshold. This may indicate component
+            lock contention or high system load.
+          runbook: "Check system resource utilization. Review
+            component status() methods for blocking calls. Consider
+            increasing scrape_interval."
+
+      - alert: CausalRetainCountStalled
+        expr: changes(cognitivemesh_causal_retrain_total[10m]) == 0
+          and cognitivemesh_causal_engine_ready == 1
+        for: 600s
+        labels:
+          severity: warning
+          component: causal_engine
+          team: platform
+        annotations:
+          summary: "Causal model has not retrained in 10 minutes"
+          description: >
+            No retrain cycles have completed in 10 minutes despite
+            the engine being ready. The buffer may be full of
+            identical data or the retrain scheduler has stalled.
+          runbook: "Check streaming_updater retrain_interval_seconds.
+            Verify Kafka is delivering new telemetry. Trigger
+            manual retrain via POST /retrain."
