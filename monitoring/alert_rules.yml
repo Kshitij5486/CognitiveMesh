@@ -1,0 +1,39 @@
+﻿groups:
+  - name: cogmesh_critical
+    interval: 30s
+    rules:
+      - alert: QuorumLost
+        expr: cogmesh_quorum_contributing_nodes < 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CognitiveMesh quorum lost"
+          description: "Contributing nodes dropped below minimum quorum of 2."
+
+      - alert: ByzantineNodeConfirmed
+        expr: cogmesh_byzantine_confirmed_nodes > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Byzantine node confirmed"
+          description: "One or more nodes confirmed Byzantine. Recovery in progress."
+
+      - alert: RecoverySuccessRateLow
+        expr: cogmesh_recovery_success_rate < 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Recovery success rate below 80%"
+          description: "Recovery sessions failing at high rate."
+
+      - alert: CausalEngineDown
+        expr: cogmesh_engine_ready == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Causal engine not ready"
+          description: "DoWhy causal inference engine not ready for 3 minutes."

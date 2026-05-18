@@ -1,0 +1,20 @@
+﻿global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: cogmesh
+    env: production
+
+rule_files:
+  - alert_rules.yml
+
+scrape_configs:
+  - job_name: cogmesh_metrics
+    static_configs:
+      - targets: ["cogmesh-app:8088"]
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

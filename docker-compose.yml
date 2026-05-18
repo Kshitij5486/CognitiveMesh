@@ -1,0 +1,218 @@
+version: "3.9"
+
+# ── CognitiveMesh v1.0.0 — Production Deployment ──────────
+# Ports:
+#   5436-5438  PostgreSQL nodes
+#   8080       Telemetry API
+#   8081       Causal Query API
+#   8082       Unified Pipeline
+#   8083       ZK Causal API
+#   8084       ZK Unified Pipeline
+#   8085       Byzantine API
+#   8086       Predictive Intelligence API
+#   8087       Self-Healing API
+#   8088       Prometheus Exporter
+#   8089       Byzantine Recovery API
+#   9090       Prometheus
+#   3000       Grafana
+
+networks:
+  cogmesh:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  pg_node1_data:
+  pg_node2_data:
+  pg_node3_data:
+  prometheus_data:
+  grafana_data:
+
+# ── PostgreSQL nodes ───────────────────────────────────────
+
+services:
+
+  pg-node1:
+    image: postgres:15-alpine
+    container_name: cogmesh-pg-node1
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cm_user
+      POSTGRES_PASSWORD: cm_secret
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5436:5432"
+    volumes:
+      - pg_node1_data:/var/lib/postgresql/data
+    networks:
+      cogmesh:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cm_user -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  pg-node2:
+    image: postgres:15-alpine
+    container_name: cogmesh-pg-node2
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cm_user
+      POSTGRES_PASSWORD: cm_secret
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5437:5432"
+    volumes:
+      - pg_node2_data:/var/lib/postgresql/data
+    networks:
+      cogmesh:
+        ipv4_address: 172.20.0.11
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cm_user -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  pg-node3:
+    image: postgres:15-alpine
+    container_name: cogmesh-pg-node3
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cm_user
+      POSTGRES_PASSWORD: cm_secret
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5438:5432"
+    volumes:
+      - pg_node3_data:/var/lib/postgresql/data
+    networks:
+      cogmesh:
+        ipv4_address: 172.20.0.12
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cm_user -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+# ── Prometheus ─────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: cogmesh-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    networks:
+      cogmesh:
+        ipv4_address: 172.20.0.20
+    depends_on:
+      - pg-node1
+      - pg-node2
+      - pg-node3
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1",
+             "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+# ── Grafana ────────────────────────────────────────────────
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: cogmesh-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: cogmesh123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "http://localhost:3000"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: >-
+        /var/lib/grafana/dashboards/cogmesh_dashboard.json
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      cogmesh:
+        ipv4_address: 172.20.0.21
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1",
+             "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+# ── CognitiveMesh application ──────────────────────────────
+
+  cogmesh-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cogmesh-app
+    restart: unless-stopped
+    environment:
+      PG_NODE1_HOST: pg-node1
+      PG_NODE1_PORT: 5432
+      PG_NODE2_HOST: pg-node2
+      PG_NODE2_PORT: 5432
+      PG_NODE3_HOST: pg-node3
+      PG_NODE3_PORT: 5432
+      PG_USER: cm_user
+      PG_PASSWORD: cm_secret
+      PG_DBNAME: postgres
+      COGMESH_ENV: production
+      LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "8082:8082"
+      - "8083:8083"
+      - "8084:8084"
+      - "8085:8085"
+      - "8086:8086"
+      - "8087:8087"
+      - "8088:8088"
+      - "8089:8089"
+    networks:
+      cogmesh:
+        ipv4_address: 172.20.0.30
+    depends_on:
+      pg-node1:
+        condition: service_healthy
+      pg-node2:
+        condition: service_healthy
+      pg-node3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f",
+             "http://localhost:8089/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - .:/app
+    working_dir: /app
