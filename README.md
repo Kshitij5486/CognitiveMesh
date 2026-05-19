@@ -71,88 +71,43 @@ Most distributed systems react to failures *after* they happen. CognitiveMesh is
 ║ ├─ models query load → latency effects                                      ║
 ║ ├─ predicts instability before SLA degradation                              ║
 ║ └─ continuous real-time retraining                                          ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+╚══════════════════════════════════════════════════════════════════════════════
                                 │
-        ┌───────────────────────┼────────────────────────┐
-        │                       │                        │
-        ▼                       ▼                        ▼
+ ┌──────────────────────────────┼──────────────────────────────────────────────┐
+ │                              │                                              │
+ ▼                              ▼                                              ▼
+
+┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
+│ ByzantineCoordinator     │  │ RecoveryOrchestrator     │  │ QuorumManager            │
+├──────────────────────────┤  ├──────────────────────────┤  ├──────────────────────────┤
+│ • 3-signal detection     │  │ • session lifecycle      │  │ • quorum safety gate     │
+│ • effect spike analysis  │  │ • MTTR tracking          │  │ • invariant enforcement  │
+│ • divergence detection   │  │ • rollback management    │  │ • minimum quorum = 2/3   │
+│ • CONFIRMED/SUSPECTED    │  │ • sequential recovery    │  │ • split-brain prevention │
+└──────────────────────────┘  └──────────────────────────┘  └──────────────────────────┘
 
 
-┌──────────────────────────┐
-│ ByzantineCoordinator     │
-├──────────────────────────┤
-│ • 3-signal detection     │
-│ • effect spike analysis  │
-│ • divergence detection   │
-│ • CONFIRMED/SUSPECTED    │
-└────────────┬─────────────┘
-             │
+┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
+│ HealthMonitor            │  │ SessionPersistence       │  │ RateLimiter              │
+├──────────────────────────┤  ├──────────────────────────┤  ├──────────────────────────┤
+│ • liveness probes        │  │ • async PostgreSQL queue │  │ • sliding window control │
+│ • readiness probes       │  │ • recovery audit logs    │  │ • per-endpoint limits    │
+│ • SLA monitoring         │  │ • zero hot-path blocking │  │ • burst protection       │
+│ • uptime tracking        │  │ • async persistence      │  │ • abuse prevention       │
+└──────────────────────────┘  └──────────────────────────┘  └──────────────────────────┘
 
-┌──────────────────────────┐
-│ RecoveryOrchestrator     │
-├──────────────────────────┤
-│ • session lifecycle      │
-│ • MTTR tracking          │
-│ • rollback management    │
-│ • sequential recovery    │
-└────────────┬─────────────┘
-             │
 
-┌──────────────────────────┐
-│ QuorumManager            │
-├──────────────────────────┤
-│ • quorum safety gate     │
-│ • invariant enforcement  │
-│ • minimum quorum = 2/3   │
-│ • split-brain prevention │
-└────────────┬─────────────┘
-             │
+┌──────────────────────────┐  ┌──────────────────────────┐
+│ PrometheusExporter       │  │ ByzantineRecoveryAPI     │
+├──────────────────────────┤  ├──────────────────────────┤
+│ • metrics aggregation    │  │ • REST interface         │
+│ • telemetry export       │  │ • recovery operations    │
+│ • 40-panel Grafana       │  │ • cluster management     │
+│ • real-time metrics      │  │ • Port 8089              │
+└──────────────────────────┘  └──────────────────────────┘
+```
+<img width="1023" height="1537" alt="image" src="https://github.com/user-attachments/assets/30976876-437e-4987-a97f-3c53ee14150c" />
 
-┌──────────────────────────┐
-│ HealthMonitor            │
-├──────────────────────────┤
-│ • liveness probes        │
-│ • readiness probes       │
-│ • SLA monitoring         │
-│ • uptime tracking        │
-└────────────┬─────────────┘
-             │
-
-┌──────────────────────────┐
-│ SessionPersistence       │
-├──────────────────────────┤
-│ • async PostgreSQL queue │
-│ • recovery audit logs    │
-│ • zero hot-path blocking │
-└────────────┬─────────────┘
-             │
-
-┌──────────────────────────┐
-│ RateLimiter              │
-├──────────────────────────┤
-│ • sliding window control │
-│ • per-endpoint limits    │
-│ • burst protection       │
-└────────────┬─────────────┘
-             │
-
-┌──────────────────────────┐
-│ PrometheusExporter       │
-├──────────────────────────┤
-│ • metrics aggregation    │
-│ • telemetry export       │
-│ • 40-panel Grafana       │
-└────────────┬─────────────┘
-             │
-
-┌──────────────────────────┐
-│ ByzantineRecoveryAPI     │
-├──────────────────────────┤
-│ • REST interface         │
-│ • recovery operations    │
-│ • cluster management     │
-│ • Port 8089              │
-└──────────────────────────┘
 
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
