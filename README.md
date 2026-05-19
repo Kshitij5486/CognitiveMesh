@@ -22,111 +22,145 @@ Most distributed systems react to failures *after* they happen. CognitiveMesh is
 
 ## Architecture
 
+# Architecture
+
+```text
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                            CognitiveMesh Architecture                       ║
+║                         CognitiveMesh Architecture                          ║
 ║          Distributed Byzantine-Resilient Causal Computing Fabric           ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 
-                         ┌─────────────────────────────┐
-                         │       Client Traffic        │
-                         │    Queries / API Requests   │
-                         └──────────────┬──────────────┘
-                                        │
-                                        ▼
+                                ┌─────────────────┐
+                                │ Client Traffic  │
+                                │ Queries / APIs  │
+                                └────────┬────────┘
+                                         │
+                                         ▼
+
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                         QUORUM-AWARE ROUTING LAYER                         ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  QuorumAwareRouter                                                         ║
-║  • causal-weighted traffic routing                                         ║
-║  • exclusion-aware balancing                                               ║
-║  • proactive degradation avoidance                                         ║
+║ QuorumAwareRouter                                                          ║
+║ ├─ causal-weighted traffic routing                                         ║
+║ ├─ exclusion-aware balancing                                               ║
+║ └─ proactive degradation avoidance                                         ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-                                        │
-               ┌────────────────────────┼────────────────────────┐
-               │                        │                        │
-               ▼                        ▼                        ▼
+                                         │
+                ┌────────────────────────┼────────────────────────┐
+                │                        │                        │
+                ▼                        ▼                        ▼
 
-        ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-        │ PostgreSQL-1 │        │ PostgreSQL-2 │        │ PostgreSQL-3 │
-        │    Primary   │        │   Replica    │        │   Replica    │
-        └──────┬───────┘        └──────┬───────┘        └──────┬───────┘
-               │                       │                       │
-               └──────────────┬────────┴────────┬──────────────┘
-                              │                 │
-                              ▼                 ▼
+        ┌────────────────┐      ┌────────────────┐      ┌────────────────┐
+        │ PostgreSQL-1   │      │ PostgreSQL-2   │      │ PostgreSQL-3   │
+        │ Primary Node   │      │ Replica Node   │      │ Replica Node   │
+        └────────┬───────┘      └────────┬───────┘      └────────┬───────┘
+                 │                       │                       │
+                 └──────────────┬────────┴────────┬──────────────┘
+                                │                 │
+                                ▼                 ▼
+
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                     STREAMING CAUSAL INTELLIGENCE LAYER                    ║
+║                    STREAMING CAUSAL INTELLIGENCE LAYER                     ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  StreamingCausalUpdater                                                    ║
-║  • DoWhy causal inference engine                                           ║
-║  • retrains every 30 seconds                                               ║
-║  • models query load → latency effects                                     ║
-║  • predicts instability before SLA degradation                             ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-                              │
-      ┌───────────────────────┼────────────────────────┐
-      │                       │                        │
-      ▼                       ▼                        ▼
-
-┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
-│ ByzantineCoordinator│ │   HealthMonitor     │ │     RateLimiter     │
-├─────────────────────┤ ├─────────────────────┤ ├─────────────────────┤
-│ • 3-signal scoring  │ │ • liveness probes   │ │ • sliding window    │
-│ • effect spike      │ │ • readiness probes  │ │ • burst control     │
-│ • divergence check  │ │ • SLA monitoring    │ │ • endpoint limits   │
-│ • CONFIRMED state   │ │ • uptime tracking   │ │ • abuse prevention  │
-└──────────┬──────────┘ └──────────┬──────────┘ └──────────┬──────────┘
-           │                       │                       │
-           └──────────────┬────────┴──────────────┬────────┘
-                          │                       │
-                          ▼                       ▼
-
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                         RECOVERY + SAFETY LAYER                            ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  RecoveryOrchestrator                                                      ║
-║  • sequential Byzantine-safe remediation                                   ║
-║  • MTTR tracking                                                           ║
-║  • rollback-aware recovery lifecycle                                       ║
+║ StreamingCausalUpdater (DoWhy, retrain every 30s)                          ║
 ║                                                                              ║
-║  QuorumManager                                                             ║
-║  • hard quorum invariant enforcement                                       ║
-║  • minimum quorum = 2/3                                                    ║
-║  • max concurrent recoveries = 1                                           ║
-║  • split-brain prevention                                                  ║
+║ ├─ causal inference engine                                                  ║
+║ ├─ models query load → latency effects                                      ║
+║ ├─ predicts instability before SLA degradation                              ║
+║ └─ continuous real-time retraining                                          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-                                        │
-                                        ▼
+                                │
+        ┌───────────────────────┼────────────────────────┐
+        │                       │                        │
+        ▼                       ▼                        ▼
 
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                         PERSISTENCE + AUDIT LAYER                          ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  SessionPersistence                                                        ║
-║  • async PostgreSQL write queue                                            ║
-║  • recovery audit logs                                                     ║
-║  • zero hot-path blocking                                                  ║
-║  • persistence enqueue latency = 0.001 ms                                  ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-                                        │
-                                        ▼
+
+┌──────────────────────────┐
+│ ByzantineCoordinator     │
+├──────────────────────────┤
+│ • 3-signal detection     │
+│ • effect spike analysis  │
+│ • divergence detection   │
+│ • CONFIRMED/SUSPECTED    │
+└────────────┬─────────────┘
+             │
+
+┌──────────────────────────┐
+│ RecoveryOrchestrator     │
+├──────────────────────────┤
+│ • session lifecycle      │
+│ • MTTR tracking          │
+│ • rollback management    │
+│ • sequential recovery    │
+└────────────┬─────────────┘
+             │
+
+┌──────────────────────────┐
+│ QuorumManager            │
+├──────────────────────────┤
+│ • quorum safety gate     │
+│ • invariant enforcement  │
+│ • minimum quorum = 2/3   │
+│ • split-brain prevention │
+└────────────┬─────────────┘
+             │
+
+┌──────────────────────────┐
+│ HealthMonitor            │
+├──────────────────────────┤
+│ • liveness probes        │
+│ • readiness probes       │
+│ • SLA monitoring         │
+│ • uptime tracking        │
+└────────────┬─────────────┘
+             │
+
+┌──────────────────────────┐
+│ SessionPersistence       │
+├──────────────────────────┤
+│ • async PostgreSQL queue │
+│ • recovery audit logs    │
+│ • zero hot-path blocking │
+└────────────┬─────────────┘
+             │
+
+┌──────────────────────────┐
+│ RateLimiter              │
+├──────────────────────────┤
+│ • sliding window control │
+│ • per-endpoint limits    │
+│ • burst protection       │
+└────────────┬─────────────┘
+             │
+
+┌──────────────────────────┐
+│ PrometheusExporter       │
+├──────────────────────────┤
+│ • metrics aggregation    │
+│ • telemetry export       │
+│ • 40-panel Grafana       │
+└────────────┬─────────────┘
+             │
+
+┌──────────────────────────┐
+│ ByzantineRecoveryAPI     │
+├──────────────────────────┤
+│ • REST interface         │
+│ • recovery operations    │
+│ • cluster management     │
+│ • Port 8089              │
+└──────────────────────────┘
+
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                      OBSERVABILITY + OPERATIONS LAYER                      ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  PrometheusExporter                                                        ║
-║  • metrics aggregation                                                     ║
-║  • real-time telemetry export                                              ║
-║  • 40-panel Grafana dashboard                                              ║
-║                                                                              ║
-║  ByzantineRecoveryAPI                                                      ║
-║  • REST interface                                                          ║
-║  • operational recovery controls                                           ║
-║  • port 8089                                                               ║
-╚════════════════════════════════════════════════════════════════════════════
-
+║ Prometheus • Grafana • Metrics Export • SLA Monitoring • Alerting          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+```
 ---
 
 ## Performance
