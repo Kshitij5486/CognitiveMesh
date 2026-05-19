@@ -106,7 +106,7 @@ Most distributed systems react to failures *after* they happen. CognitiveMesh is
 │ • real-time metrics      │  │ • Port 8089              │
 └──────────────────────────┘  └──────────────────────────┘
 ```
-<img width="1023" height="1537" alt="image" src="https://github.com/user-attachments/assets/30976876-437e-4987-a97f-3c53ee14150c" />
+
 
 
 
@@ -115,6 +115,9 @@ Most distributed systems react to failures *after* they happen. CognitiveMesh is
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ Prometheus • Grafana • Metrics Export • SLA Monitoring • Alerting          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
+```
+```
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/30976876-437e-4987-a97f-3c53ee14150c" />
 ```
 ---
 
