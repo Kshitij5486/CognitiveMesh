@@ -26,8 +26,8 @@ Most distributed systems react to failures *after* they happen. CognitiveMesh is
 
 ```text
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                         CognitiveMesh Architecture                          ║
-║          Distributed Byzantine-Resilient Causal Computing Fabric           ║
+║                         CognitiveMesh Architecture                           ║
+║          Distributed Byzantine-Resilient Causal Computing Fabric             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 
@@ -40,12 +40,12 @@ Most distributed systems react to failures *after* they happen. CognitiveMesh is
 
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                         QUORUM-AWARE ROUTING LAYER                         ║
+║                         QUORUM-AWARE ROUTING LAYER                           ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║ QuorumAwareRouter                                                          ║
-║ ├─ causal-weighted traffic routing                                         ║
-║ ├─ exclusion-aware balancing                                               ║
-║ └─ proactive degradation avoidance                                         ║
+║ QuorumAwareRouter                                                            ║
+║ ├─ causal-weighted traffic routing                                           ║
+║ ├─ exclusion-aware balancing                                                 ║
+║ └─ proactive degradation avoidance                                           ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
                                          │
                 ┌────────────────────────┼────────────────────────┐
@@ -63,14 +63,14 @@ Most distributed systems react to failures *after* they happen. CognitiveMesh is
 
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                    STREAMING CAUSAL INTELLIGENCE LAYER                     ║
+║                    STREAMING CAUSAL INTELLIGENCE LAYER                       ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║ StreamingCausalUpdater (DoWhy, retrain every 30s)                          ║
+║ StreamingCausalUpdater (DoWhy, retrain every 30s)                            ║
 ║                                                                              ║
-║ ├─ causal inference engine                                                  ║
-║ ├─ models query load → latency effects                                      ║
-║ ├─ predicts instability before SLA degradation                              ║
-║ └─ continuous real-time retraining                                          ║
+║ ├─ causal inference engine                                                   ║
+║ ├─ models query load → latency effects                                       ║
+║ ├─ predicts instability before SLA degradation                               ║
+║ └─ continuous real-time retraining                                           ║
 ╚══════════════════════════════════════════════════════════════════════════════
                                 │
  ┌──────────────────────────────┼──────────────────────────────────────────────┐
@@ -262,7 +262,7 @@ Recovery decisions must never block waiting for database writes. The async deque
 
 **Kshitij Srivastava**
 NIT Surat — 3rd year Computer Science
-CGPA: 6.14
+
 
 Built entirely during summer 2026 as a placement preparation project demonstrating distributed systems, causal inference, Byzantine fault tolerance, and production engineering skills.
 
