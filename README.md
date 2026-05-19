@@ -264,8 +264,6 @@ Recovery decisions must never block waiting for database writes. The async deque
 NIT Surat — 3rd year Computer Science
 
 
-Built entirely during summer 2026 as a placement preparation project demonstrating distributed systems, causal inference, Byzantine fault tolerance, and production engineering skills.
 
 ---
 
-*v1.0.0 — May 2026 — 70 days — 10 sprints — 1 developer*
